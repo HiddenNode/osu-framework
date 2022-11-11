@@ -21,6 +21,9 @@ namespace osu.Framework.Graphics.Containers
     /// </summary>
     public class TextFlowContainer : FillFlowContainer
     {
+        protected override Container<Drawable> Content => content;
+        private readonly Container content;
+
         private float firstLineIndent;
         private readonly Action<SpriteText> defaultCreationParameters;
 
@@ -115,6 +118,9 @@ namespace osu.Framework.Graphics.Containers
 
                 textAnchor = value;
 
+                Content.Anchor = value;
+                Content.Origin = value;
+
                 layout.Invalidate();
             }
         }
@@ -141,6 +147,12 @@ namespace osu.Framework.Graphics.Containers
 
         public TextFlowContainer(Action<SpriteText> defaultCreationParameters = null)
         {
+            content = new Container
+            {
+                AutoSizeAxes = Axes.Both,
+            };
+            AddInternal(content);
+
             this.defaultCreationParameters = defaultCreationParameters;
         }
 
@@ -174,33 +186,23 @@ namespace osu.Framework.Graphics.Containers
                 RecreateAllParts();
         }
 
-        public override IEnumerable<Drawable> FlowingChildren
-        {
-            get
-            {
-                if ((TextAnchor & (Anchor.x2 | Anchor.y2)) == 0)
-                    return base.FlowingChildren;
-
-                var childArray = base.FlowingChildren.ToArray();
-
-                if ((TextAnchor & Anchor.x2) > 0)
-                    reverseHorizontal(childArray);
-                if ((TextAnchor & Anchor.y2) > 0)
-                    reverseVertical(childArray);
-
-                return childArray;
-            }
-        }
-
         protected override void UpdateAfterChildren()
         {
+            base.UpdateAfterChildren();
+
             if (!layout.IsValid)
             {
                 computeLayout();
                 layout.Validate();
             }
+        }
 
-            base.UpdateAfterChildren();
+        protected override void PerformLayout()
+        {
+            base.PerformLayout();
+
+            computeLayout();
+            layout.Validate();
         }
 
         protected override int Compare(Drawable x, Drawable y)
@@ -340,32 +342,6 @@ namespace osu.Framework.Graphics.Containers
                 base.Add(drawable);
         }
 
-        private void reverseHorizontal(Drawable[] children)
-        {
-            int reverseStartIndex = 0;
-
-            // Inverse the order of all children when displaying backwards, stopping at newline boundaries
-            for (int i = 0; i < children.Length; i++)
-            {
-                if (!(children[i] is NewLineContainer))
-                    continue;
-
-                Array.Reverse(children, reverseStartIndex, i - reverseStartIndex);
-                reverseStartIndex = i + 1;
-            }
-
-            // Extra loop for the last newline boundary (or all children if there are no newlines)
-            Array.Reverse(children, reverseStartIndex, children.Length - reverseStartIndex);
-        }
-
-        private void reverseVertical(Drawable[] children)
-        {
-            // A vertical reverse reverses the order of the newline sections, but not the order within the newline sections
-            // For code clarity this is done by reversing the entire array, and then reversing within the newline sections to restore horizontal order
-            Array.Reverse(children);
-            reverseHorizontal(children);
-        }
-
         private readonly Cached layout = new Cached();
 
         private void computeLayout()
@@ -375,9 +351,6 @@ namespace osu.Framework.Graphics.Containers
 
             foreach (var c in Children)
             {
-                c.Anchor = TextAnchor;
-                c.Origin = TextAnchor;
-
                 if (c is NewLineContainer nlc)
                 {
                     curLine.Add(nlc);
@@ -411,6 +384,10 @@ namespace osu.Framework.Graphics.Containers
                 float currentLineHeight = 0f;
                 float lineSpacingValue = lastLineHeight * LineSpacing;
 
+                // Compute the offset of this line from the right
+                Drawable lastTextPartInLine = (line[^1] is NewLineContainer && line.Count >= 2) ? line[^2] : line[^1];
+                float lineOffsetFromRight = Content.ChildSize.X - (lastTextPartInLine.X + lastTextPartInLine.DrawWidth);
+
                 foreach (Drawable c in line)
                 {
                     if (c is NewLineContainer nlc)
@@ -430,6 +407,11 @@ namespace osu.Framework.Graphics.Containers
 
                     if (c.Height > currentLineHeight)
                         currentLineHeight = c.Height;
+
+                    if ((TextAnchor & Anchor.x1) != 0)
+                        c.X += lineOffsetFromRight / 2;
+                    else if ((TextAnchor & Anchor.x2) != 0)
+                        c.X += lineOffsetFromRight;
 
                     isFirstChild = false;
                 }

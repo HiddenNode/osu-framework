@@ -79,10 +79,10 @@ namespace osu.Framework.Graphics.Containers
         {
             if (drawable != null)
             {
-            layoutChildren.Add(drawable, 0f);
-            // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
-            // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
-            InvalidateLayout();
+                layoutChildren.Add(drawable, 0f);
+                // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
+                // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
+                InvalidateLayout();
                 base.Add(drawable);
             }
         }
@@ -163,7 +163,7 @@ namespace osu.Framework.Graphics.Containers
 
         protected abstract IEnumerable<Vector2> ComputeLayoutPositions();
 
-        private void performLayout()
+        protected virtual void PerformLayout()
         {
             OnLayout?.Invoke();
 
@@ -228,7 +228,7 @@ namespace osu.Framework.Graphics.Containers
 
             if (!layout.IsValid)
             {
-                performLayout();
+                PerformLayout();
                 layout.Validate();
             }
         }
