@@ -75,34 +75,84 @@ namespace osu.Framework.Graphics.Containers
 
         private readonly Dictionary<Drawable, float> layoutChildren = new Dictionary<Drawable, float>();
 
-        public override void Add(T drawable)
+        protected internal override void AddInternal(Drawable drawable)
         {
-            if (drawable != null)
+            if (Content == this)
             {
                 layoutChildren.Add(drawable, 0f);
                 // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
                 // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
                 InvalidateLayout();
+            }
+
+            base.AddInternal(drawable);
+        }
+
+        public override void Add(T drawable)
+        {
+            if (drawable != null)
+            {
+                if (Content != this)
+                {
+                    layoutChildren.Add(drawable, 0f);
+                    // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
+                    // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
+                    InvalidateLayout();
+                }
+
                 base.Add(drawable);
             }
         }
 
+        protected internal override bool RemoveInternal(Drawable drawable, bool disposeImmediately)
+        {
+            if (Content == this)
+            {
+                layoutChildren.Remove(drawable);
+                // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
+                // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
+                InvalidateLayout();
+            }
+
+            return base.RemoveInternal(drawable, disposeImmediately);
+        }
+
         public override bool Remove(T drawable, bool disposeImmediately)
         {
-            layoutChildren.Remove(drawable);
-            // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
-            // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
-            InvalidateLayout();
+            if (Content != this)
+            {
+                layoutChildren.Remove(drawable);
+                // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
+                // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
+                InvalidateLayout();
+            }
 
             return base.Remove(drawable, disposeImmediately);
         }
 
+        protected internal override void ClearInternal(bool disposeChildren = true)
+        {
+            if (Content == this)
+            {
+                layoutChildren.Clear();
+                // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
+                // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
+                InvalidateLayout();
+            }
+
+            base.ClearInternal(disposeChildren);
+        }
+
         public override void Clear(bool disposeChildren)
         {
-            layoutChildren.Clear();
-            // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
-            // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
-            InvalidateLayout();
+            if (Content != this)
+            {
+                layoutChildren.Clear();
+                // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
+                // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
+                InvalidateLayout();
+            }
+
             base.Clear(disposeChildren);
         }
 
@@ -159,7 +209,7 @@ namespace osu.Framework.Graphics.Containers
         /// <summary>
         /// Gets the children that appear in the flow of this <see cref="FlowContainer{T}"/> in the order in which they are processed within the flowing layout.
         /// </summary>
-        public virtual IEnumerable<Drawable> FlowingChildren => AliveChildren.Where(d => d.IsPresent).OrderBy(d => layoutChildren[d]).ThenBy(d => d.ChildID);
+        public virtual IEnumerable<Drawable> FlowingChildren => Content.AliveInternalChildren.Where(d => d.IsPresent).OrderBy(d => layoutChildren[d]).ThenBy(d => d.ChildID);
 
         protected abstract IEnumerable<Vector2> ComputeLayoutPositions();
 
