@@ -13,6 +13,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Extensions.EnumExtensions;
 using osu.Framework.Extensions.IEnumerableExtensions;
 using osu.Framework.Localisation;
+using FFmpeg.AutoGen;
 
 namespace osu.Framework.Graphics.Containers
 {
@@ -28,6 +29,8 @@ namespace osu.Framework.Graphics.Containers
         private readonly Action<SpriteText> defaultCreationParameters;
 
         private readonly List<ITextPart> parts = new List<ITextPart>();
+
+        public override IEnumerable<Drawable> FlowingChildren => AliveChildren.Where(d => d.IsPresent).OrderBy(d => LayoutChildren[d]).ThenBy(d => d.ChildID);
 
         private readonly Cached partsCache = new Cached();
 
@@ -286,8 +289,19 @@ namespace osu.Framework.Graphics.Containers
             throw new InvalidOperationException($"Use {nameof(AddText)} to add text to a {nameof(TextFlowContainer)}.");
         }
 
+        public override bool Remove(Drawable drawable, bool disposeImmediately)
+        {
+            LayoutChildren.Remove(drawable);
+            InvalidateLayout();
+
+            return base.Remove(drawable, disposeImmediately);
+        }
+
         public override void Clear(bool disposeChildren)
         {
+            LayoutChildren.Clear();
+            InvalidateLayout();
+
             base.Clear(disposeChildren);
             parts.Clear();
         }
@@ -339,7 +353,12 @@ namespace osu.Framework.Graphics.Containers
         {
             part.RecreateDrawablesFor(this);
             foreach (var drawable in part.Drawables)
+            {
                 base.Add(drawable);
+                LayoutChildren.Add(drawable, 0f);
+            }
+
+            InvalidateLayout();
         }
 
         private readonly Cached layout = new Cached();
