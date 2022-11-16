@@ -13,23 +13,23 @@ using osu.Framework.Bindables;
 using osu.Framework.Extensions.EnumExtensions;
 using osu.Framework.Extensions.IEnumerableExtensions;
 using osu.Framework.Localisation;
+using osuTK;
 
 namespace osu.Framework.Graphics.Containers
 {
     /// <summary>
     /// A drawable text object that supports more advanced text formatting.
     /// </summary>
-    public class TextFlowContainer : FillFlowContainer
+    public class TextFlowContainer : Container
     {
         protected override Container<Drawable> Content => content;
-        private readonly Container content;
+        private readonly TextFillFlowContainer content;
 
-        private float firstLineIndent;
+        public virtual IEnumerable<Drawable> FlowingChildren => content.FlowingChildren;
+
         private readonly Action<SpriteText> defaultCreationParameters;
 
         private readonly List<ITextPart> parts = new List<ITextPart>();
-
-        public override IEnumerable<Drawable> FlowingChildren => AliveChildren.Where(d => d.IsPresent).OrderBy(d => LayoutChildren[d]).ThenBy(d => d.ChildID);
 
         private readonly Cached partsCache = new Cached();
 
@@ -38,36 +38,32 @@ namespace osu.Framework.Graphics.Containers
         /// </summary>
         public float FirstLineIndent
         {
-            get => firstLineIndent;
+            get => content.FirstLineIndent;
             set
             {
-                if (value == firstLineIndent) return;
+                if (value == content.FirstLineIndent) return;
 
-                firstLineIndent = value;
+                content.FirstLineIndent = value;
 
-                layout.Invalidate();
+                content.Layout.Invalidate();
             }
         }
-
-        private float contentIndent;
 
         /// <summary>
         /// An indent value for all lines proceeding the first line in a paragraph.
         /// </summary>
         public float ContentIndent
         {
-            get => contentIndent;
+            get => content.ContentIndent;
             set
             {
-                if (value == contentIndent) return;
+                if (value == content.ContentIndent) return;
 
-                contentIndent = value;
+                content.ContentIndent = value;
 
-                layout.Invalidate();
+                content.Layout.Invalidate();
             }
         }
-
-        private float paragraphSpacing = 0.5f;
 
         /// <summary>
         /// Vertical space between paragraphs (i.e. text separated by '\n') in multiples of the text size.
@@ -75,18 +71,16 @@ namespace osu.Framework.Graphics.Containers
         /// </summary>
         public float ParagraphSpacing
         {
-            get => paragraphSpacing;
+            get => content.ParagraphSpacing;
             set
             {
-                if (value == paragraphSpacing) return;
+                if (value == content.ParagraphSpacing) return;
 
-                paragraphSpacing = value;
+                content.ParagraphSpacing = value;
 
-                layout.Invalidate();
+                content.Layout.Invalidate();
             }
         }
-
-        private float lineSpacing;
 
         /// <summary>
         /// Vertical space between lines both when a new paragraph begins and when line wrapping occurs.
@@ -94,36 +88,34 @@ namespace osu.Framework.Graphics.Containers
         /// </summary>
         public float LineSpacing
         {
-            get => lineSpacing;
+            get => content.LineSpacing;
             set
             {
-                if (value == lineSpacing) return;
+                if (value == content.LineSpacing) return;
 
-                lineSpacing = value;
+                content.LineSpacing = value;
 
-                layout.Invalidate();
+                content.Layout.Invalidate();
             }
         }
-
-        private Anchor textAnchor = Anchor.TopLeft;
 
         /// <summary>
         /// The <see cref="Anchor"/> which text should flow from.
         /// </summary>
         public Anchor TextAnchor
         {
-            get => textAnchor;
+            get => content.TextAnchor;
             set
             {
-                if (textAnchor == value)
+                if (content.TextAnchor == value)
                     return;
 
-                textAnchor = value;
+                content.TextAnchor = value;
 
-                Content.Anchor = value;
-                Content.Origin = value;
+                content.Anchor = value;
+                content.Origin = value;
 
-                layout.Invalidate();
+                content.Layout.Invalidate();
             }
         }
 
@@ -149,7 +141,7 @@ namespace osu.Framework.Graphics.Containers
 
         public TextFlowContainer(Action<SpriteText> defaultCreationParameters = null)
         {
-            content = new Container
+            content = new TextFillFlowContainer
             {
                 AutoSizeAxes = Axes.Both,
             };
@@ -174,15 +166,25 @@ namespace osu.Framework.Graphics.Containers
             ((IBindable<LocalisationParameters>)localisationParameters).BindTo(Localisation.CurrentParameters);
         }
 
-        protected override void InvalidateLayout()
+        protected void InvalidateLayout()
         {
-            base.InvalidateLayout();
-            layout.Invalidate();
+            content.InvalidateLayout();
+            content.Layout.Invalidate();
         }
 
         protected override void Update()
         {
             base.Update();
+
+            Vector2 maxSize = ChildSize;
+
+            if ((AutoSizeAxes & Axes.X) != 0)
+                maxSize.X = 0;
+
+            if ((AutoSizeAxes & Axes.Y) != 0)
+                maxSize.Y = 0;
+
+            content.MaximumSize = maxSize;
 
             if (!partsCache.IsValid)
                 RecreateAllParts();
@@ -192,19 +194,11 @@ namespace osu.Framework.Graphics.Containers
         {
             base.UpdateAfterChildren();
 
-            if (!layout.IsValid)
+            if (!content.Layout.IsValid)
             {
-                computeLayout();
-                layout.Validate();
+                content.ComputeLayout();
+                content.Layout.Validate();
             }
-        }
-
-        protected override void PerformLayout()
-        {
-            base.PerformLayout();
-
-            computeLayout();
-            layout.Validate();
         }
 
         protected override int Compare(Drawable x, Drawable y)
@@ -290,7 +284,6 @@ namespace osu.Framework.Graphics.Containers
 
         public override bool Remove(Drawable drawable, bool disposeImmediately)
         {
-            LayoutChildren.Remove(drawable);
             InvalidateLayout();
 
             return base.Remove(drawable, disposeImmediately);
@@ -298,7 +291,6 @@ namespace osu.Framework.Graphics.Containers
 
         public override void Clear(bool disposeChildren)
         {
-            LayoutChildren.Clear();
             InvalidateLayout();
 
             base.Clear(disposeChildren);
@@ -355,94 +347,10 @@ namespace osu.Framework.Graphics.Containers
             foreach (var drawable in part.Drawables)
             {
                 base.Add(drawable);
-                LayoutChildren.Add(drawable, 0f);
             }
 
             InvalidateLayout();
         }
-
-        private readonly Cached layout = new Cached();
-
-        private void computeLayout()
-        {
-            var childrenByLine = new List<List<Drawable>>();
-            var curLine = new List<Drawable>();
-
-            foreach (var c in Children)
-            {
-                if (c is NewLineContainer nlc)
-                {
-                    curLine.Add(nlc);
-                    childrenByLine.Add(curLine);
-                    curLine = new List<Drawable>();
-                }
-                else
-                {
-                    if (c.X == 0)
-                    {
-                        if (curLine.Count > 0)
-                            childrenByLine.Add(curLine);
-                        curLine = new List<Drawable>();
-                    }
-
-                    curLine.Add(c);
-                }
-            }
-
-            if (curLine.Count > 0)
-                childrenByLine.Add(curLine);
-
-            bool isFirstLine = true;
-            float lastLineHeight = 0f;
-
-            foreach (var line in childrenByLine)
-            {
-                bool isFirstChild = true;
-                IEnumerable<float> lineBaseHeightValues = line.OfType<IHasLineBaseHeight>().Select(l => l.LineBaseHeight);
-                float lineBaseHeight = lineBaseHeightValues.Any() ? lineBaseHeightValues.Max() : 0f;
-                float currentLineHeight = 0f;
-                float lineSpacingValue = lastLineHeight * LineSpacing;
-
-                // Compute the offset of this line from the right
-                Drawable lastTextPartInLine = (line[^1] is NewLineContainer && line.Count >= 2) ? line[^2] : line[^1];
-                float lineOffsetFromRight = Content.ChildSize.X - (lastTextPartInLine.X + lastTextPartInLine.DrawWidth);
-
-                foreach (Drawable c in line)
-                {
-                    if (c is NewLineContainer nlc)
-                    {
-                        nlc.Height = nlc.IndicatesNewParagraph ? (currentLineHeight == 0 ? lastLineHeight : currentLineHeight) * ParagraphSpacing : 0;
-                        continue;
-                    }
-
-                    float childLineBaseHeight = (c as IHasLineBaseHeight)?.LineBaseHeight ?? 0f;
-                    MarginPadding margin = new MarginPadding { Top = (childLineBaseHeight != 0f ? lineBaseHeight - childLineBaseHeight : 0f) + lineSpacingValue };
-                    if (isFirstLine)
-                        margin.Left = FirstLineIndent;
-                    else if (isFirstChild)
-                        margin.Left = ContentIndent;
-
-                    c.Margin = margin;
-
-                    if (c.Height > currentLineHeight)
-                        currentLineHeight = c.Height;
-
-                    if ((TextAnchor & Anchor.x1) != 0)
-                        c.X += lineOffsetFromRight / 2;
-                    else if ((TextAnchor & Anchor.x2) != 0)
-                        c.X += lineOffsetFromRight;
-
-                    isFirstChild = false;
-                }
-
-                if (currentLineHeight != 0f)
-                    lastLineHeight = currentLineHeight;
-
-                isFirstLine = false;
-            }
-        }
-
-        protected override bool ForceNewRow(Drawable child) => child is NewLineContainer;
 
         public class NewLineContainer : Container
         {
@@ -451,6 +359,112 @@ namespace osu.Framework.Graphics.Containers
             public NewLineContainer(bool newParagraph)
             {
                 IndicatesNewParagraph = newParagraph;
+            }
+        }
+
+        private class TextFillFlowContainer : FillFlowContainer
+        {
+            protected override bool ForceNewRow(Drawable child) => child is NewLineContainer;
+
+            public readonly Cached Layout = new Cached();
+
+            public new void InvalidateLayout() => base.InvalidateLayout();
+
+            public Anchor TextAnchor = Anchor.TopLeft;
+
+            public float ContentIndent;
+
+            public float ParagraphSpacing = 0.5f;
+
+            public float LineSpacing;
+
+            public float FirstLineIndent;
+
+            protected override void PerformLayout()
+            {
+                base.PerformLayout();
+
+                ComputeLayout();
+                Layout.Validate();
+            }
+
+            public void ComputeLayout()
+            {
+                var childrenByLine = new List<List<Drawable>>();
+                var curLine = new List<Drawable>();
+
+                foreach (var c in Children)
+                {
+                    if (c is NewLineContainer nlc)
+                    {
+                        curLine.Add(nlc);
+                        childrenByLine.Add(curLine);
+                        curLine = new List<Drawable>();
+                    }
+                    else
+                    {
+                        if (c.X == 0)
+                        {
+                            if (curLine.Count > 0)
+                                childrenByLine.Add(curLine);
+                            curLine = new List<Drawable>();
+                        }
+
+                        curLine.Add(c);
+                    }
+                }
+
+                if (curLine.Count > 0)
+                    childrenByLine.Add(curLine);
+
+                bool isFirstLine = true;
+                float lastLineHeight = 0f;
+
+                foreach (var line in childrenByLine)
+                {
+                    bool isFirstChild = true;
+                    IEnumerable<float> lineBaseHeightValues = line.OfType<IHasLineBaseHeight>().Select(l => l.LineBaseHeight);
+                    float lineBaseHeight = lineBaseHeightValues.Any() ? lineBaseHeightValues.Max() : 0f;
+                    float currentLineHeight = 0f;
+                    float lineSpacingValue = lastLineHeight * LineSpacing;
+
+                    // Compute the offset of this line from the right
+                    Drawable lastTextPartInLine = (line[^1] is NewLineContainer && line.Count >= 2) ? line[^2] : line[^1];
+                    float lineOffsetFromRight = ChildSize.X - (lastTextPartInLine.X + lastTextPartInLine.DrawWidth);
+
+                    foreach (Drawable c in line)
+                    {
+                        if (c is NewLineContainer nlc)
+                        {
+                            nlc.Height = nlc.IndicatesNewParagraph ? (currentLineHeight == 0 ? lastLineHeight : currentLineHeight) * ParagraphSpacing : 0;
+                            continue;
+                        }
+
+                        float childLineBaseHeight = (c as IHasLineBaseHeight)?.LineBaseHeight ?? 0f;
+                        MarginPadding margin = new MarginPadding { Top = (childLineBaseHeight != 0f ? lineBaseHeight - childLineBaseHeight : 0f) + lineSpacingValue };
+                        if (isFirstLine)
+                            margin.Left = FirstLineIndent;
+                        else if (isFirstChild)
+                            margin.Left = ContentIndent;
+
+                        c.Margin = margin;
+
+                        if (c.Height > currentLineHeight)
+                            currentLineHeight = c.Height;
+
+                        if ((TextAnchor & Anchor.x1) != 0)
+                            c.X += lineOffsetFromRight / 2;
+                        else if ((TextAnchor & Anchor.x2) != 0)
+                            c.X += lineOffsetFromRight;
+
+                        isFirstChild = false;
+                    }
+
+                    if (currentLineHeight != 0f)
+                        lastLineHeight = currentLineHeight;
+
+                    isFirstLine = false;
+                }
             }
         }
     }
