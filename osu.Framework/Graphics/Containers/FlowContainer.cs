@@ -73,11 +73,11 @@ namespace osu.Framework.Graphics.Containers
         /// </summary>
         protected virtual void InvalidateLayout() => layout.Invalidate();
 
-        protected readonly Dictionary<Drawable, float> LayoutChildren = new Dictionary<Drawable, float>();
+        private readonly Dictionary<Drawable, float> layoutChildren = new Dictionary<Drawable, float>();
 
         protected override void AddInternal(Drawable drawable)
         {
-            LayoutChildren.Add(drawable, 0f);
+            layoutChildren.Add(drawable, 0f);
             // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
             // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
             InvalidateLayout();
@@ -86,7 +86,7 @@ namespace osu.Framework.Graphics.Containers
 
         protected internal override bool RemoveInternal(Drawable drawable, bool disposeImmediately)
         {
-            LayoutChildren.Remove(drawable);
+            layoutChildren.Remove(drawable);
             // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
             // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
             InvalidateLayout();
@@ -96,7 +96,7 @@ namespace osu.Framework.Graphics.Containers
 
         protected internal override void ClearInternal(bool disposeChildren = true)
         {
-            LayoutChildren.Clear();
+            layoutChildren.Clear();
             // we have to ensure that the layout gets invalidated since Adding or Removing a child will affect the layout. The base class will not invalidate
             // if we are set to AutoSizeAxes.None, but even in that situation, the layout can and often does change when children are added/removed.
             InvalidateLayout();
@@ -111,10 +111,10 @@ namespace osu.Framework.Graphics.Containers
         /// <param name="newPosition">The new position in the layout the drawable should have.</param>
         public void SetLayoutPosition(Drawable drawable, float newPosition)
         {
-            if (!LayoutChildren.ContainsKey(drawable))
+            if (!layoutChildren.ContainsKey(drawable))
                 throw new InvalidOperationException($"Cannot change layout position of drawable which is not contained within this {nameof(FlowContainer<T>)}.");
 
-            LayoutChildren[drawable] = newPosition;
+            layoutChildren[drawable] = newPosition;
             InvalidateLayout();
         }
 
@@ -137,10 +137,10 @@ namespace osu.Framework.Graphics.Containers
         /// <returns>The position of the drawable in the layout.</returns>
         public float GetLayoutPosition(Drawable drawable)
         {
-            if (!LayoutChildren.ContainsKey(drawable))
+            if (!layoutChildren.ContainsKey(drawable))
                 throw new InvalidOperationException($"Cannot get layout position of drawable which is not contained within this {nameof(FlowContainer<T>)}.");
 
-            return LayoutChildren[drawable];
+            return layoutChildren[drawable];
         }
 
         protected override bool UpdateChildrenLife()
@@ -156,7 +156,7 @@ namespace osu.Framework.Graphics.Containers
         /// <summary>
         /// Gets the children that appear in the flow of this <see cref="FlowContainer{T}"/> in the order in which they are processed within the flowing layout.
         /// </summary>
-        public virtual IEnumerable<Drawable> FlowingChildren => AliveInternalChildren.Where(d => d.IsPresent).OrderBy(d => LayoutChildren[d]).ThenBy(d => d.ChildID);
+        public virtual IEnumerable<Drawable> FlowingChildren => AliveInternalChildren.Where(d => d.IsPresent).OrderBy(d => layoutChildren[d]).ThenBy(d => d.ChildID);
 
         protected abstract IEnumerable<Vector2> ComputeLayoutPositions();
 
